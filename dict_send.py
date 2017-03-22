@@ -28,7 +28,7 @@ def verify(fileName):
 def checkall():
 	pass
 
-def parseOutput(query):
+def parseOutput(query,client,clientUdp):
 	b = ''
 	if query.split()[0] != "download":
 		while True:
@@ -38,14 +38,27 @@ def parseOutput(query):
 				jsonOutput = json.loads(b)
 				beautyPrint(jsonOutput)
 				break
-	else:
-		with open(query.split()[2], 'wb') as f:
-			while True:
-				print('receiving data...')
-				data = s.recv(1024)
-				if not data:
-					break
-				f.write(data)
+	elif query.split()[0] == "download":
+		if query.split()[1] == "TCP":
+			with open(query.split()[2]+"_downloaded", 'wb') as f:
+				while True:
+					print('receiving data...')
+					data = client.recv(1024)
+					if not data:
+						break
+					f.write(data)
+		elif query.split()[1] == "UDP":
+			with open(query.split()[2]+"_downloaded",'wb') as f:
+				while True:
+					print "receiving data..."
+					dataUdp , addrUdp = clientUdp.recvfrom(1024)
+					print dataUdp
+					udpEnd = client.recv(1024)
+					print 'h'+udpEnd+'h'
+					if udpEnd == "udpDone":
+						f.write(dataUdp)
+						break
+					f.write(dataUdp)
 
 
 def parseQuery(query):
@@ -64,10 +77,13 @@ def parseQuery(query):
 			checkall()
 
 
-
-client = socket.socket()
 host = ""
 port = 12341
+portUdp = 12342
+client = socket.socket()
+
+clientUdp = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+clientUdp.bind((host,portUdp))
 
 data = ['the letter a','the letter b']
 
@@ -78,7 +94,7 @@ while True:
 	query = raw_input("prompt>")
 	client.send(query)	
 	print "passed query"
-	output = parseOutput(query)
+	output = parseOutput(query,client,clientUdp)
 	print "broken"
 	client.close()
 #fgdsfdsf

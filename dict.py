@@ -71,8 +71,26 @@ def checkall(conn,path):
 	conn.send(resultJson)
 	pass
 
+def tcpDownload(path,conn,fileName):
+	file = open(fileName,'rb')
+	tempBytes = file.read(1024)
+	while tempBytes:
+		conn.send(tempBytes)
+		tempBytes = file.read(1024)
+	file.close()
+	pass
 
-def parseQuery(query,conn):
+def udpDownload(path,serverUdp,portUdp,conn,fileName):
+	file = open(fileName,'rb')
+	tempBytes = file.read(1024)
+	while tempBytes:
+		serverUdp.sendto(tempBytes,("",portUdp))
+		tempBytes = file.read(1024)
+	file.close()
+	conn.send('udpDone')
+	pass
+
+def parseQuery(query,conn,serverUdp,portUdp):
 	command = query.split()
 	if command[0] == "index":
 		if command[1] == "longlist":
@@ -86,16 +104,26 @@ def parseQuery(query,conn):
 			verify(command[2],conn,'.')
 		elif command[1] == "checkall":
 			checkall(conn,'.')
-	
+	elif command[0] == "download":
+		if command[1] == "TCP":
+			tcpDownload('.',conn,command[2])
+		elif command[1] == "UDP":
+			udpDownload('.',serverUdp,portUdp,conn,command[2])	
 port = 12341
+portUdp = 12342
+
 server = socket.socket()
+serverUdp = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+
 host = ""
+
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind((host, port))
 server.listen(5)
 
+
 while True:
 	conn,addr = server.accept()
 	query = conn.recv(1024)
-	parseQuery(query,conn)
+	parseQuery(query,conn,serverUdp,portUdp)
 	conn.close()
