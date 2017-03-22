@@ -7,13 +7,14 @@ import hashlib
 
 def getStats(fileName):
 	temp = {}
-	temp['time'] = os.stats(fileName).st_mtime
-	temp['size'] = os.stats(fileName).st_size
 	temp['name'] = fileName
-	if os.isdir(fileName):
+	temp['time'] = os.stat(fileName).st_mtime
+	temp['size'] = os.stat(fileName).st_size
+	if os.path.isdir(fileName):
 		temp['type'] = 'dir'
 	else:
 		temp['type'] = 'file'
+	return temp
 
 def longlist(path,conn):
 	result = []
@@ -26,9 +27,11 @@ def longlist(path,conn):
 
 def shortlist(a,b,path,conn):
 	result = []
+	a = datetime.datetime.strptime(a,'%Y/%m/%d')
+	b = datetime.datetime.strptime(b,'%Y/%m/%d')
 	for file in os.listdir(path):
 		temp = getStats(file)
-		if datetime.datetime.fortimestamp(temp['time']) >= a and datetime.datetime.fortimestamp(temp['time']) <= b:
+		if datetime.datetime.fromtimestamp(temp['time']) >= a and datetime.datetime.fromtimestamp(temp['time']) <= b:
 			result.append(temp)
 	resultJson = json.dumps(result)
 	conn.send(resultJson)
@@ -47,7 +50,8 @@ def regex(regExp,path,conn):
 def checksum(fileName):
 	return hashlib.md5(open(fileName,'rb').read()).hexdigest()
 
-def verify(fileName,conn):
+def verify(fileName,conn,path):
+	result = []
 	value = checksum(fileName)
 	for file in os.listdir(path):
 		if file == fileName:
@@ -57,10 +61,12 @@ def verify(fileName,conn):
 	conn.send(resultJson)
 
 def checkall(conn,path):
+	result = []
 	for file in os.listdir(path):
-		temp = getStats(file)
-		value = checksum(file)
-		result.append({'name':file,'time':temp['time'],'value':value})
+		if os.path.isfile(file):
+			temp = getStats(file)
+			value = checksum(file)
+			result.append({'name':file,'time':temp['time'],'value':value})
 	resultJson = json.dumps(result)
 	conn.send(resultJson)
 	pass
@@ -77,7 +83,19 @@ def parseQuery(query,conn):
 			regex(command[2],'.',conn)
 	elif command[0] == "hash":
 		if command[1] == "verify":
-			verify(command[2],conn)
+			verify(command[2],conn,'.')
 		elif command[1] == "checkall":
-			checkall(conn,path)
+			checkall(conn,'.')
+	
+port = 12341
+server = socket.socket()
+host = ""
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind((host, port))
+server.listen(5)
 
+while True:
+	conn,addr = server.accept()
+	query = conn.recv(1024)
+	parseQuery(query,conn)
+	conn.close()
