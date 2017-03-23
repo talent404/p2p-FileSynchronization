@@ -4,14 +4,14 @@ import os
 import datetime
 import re
 import hashlib
+import time
 
-
-def getStats(fileName):
+def getStats(fileName,path):
 	temp = {}
 	temp['name'] = fileName
-	temp['time'] = os.stat(fileName).st_mtime
-	temp['size'] = os.stat(fileName).st_size
-	if os.path.isdir(fileName):
+	temp['time'] = os.stat(path+'/'+fileName).st_mtime
+	temp['size'] = os.stat(path+'/'+fileName).st_size
+	if os.path.isdir(path+'/'+fileName):
 		temp['type'] = 'dir'
 	else:
 		temp['type'] = 'file'
@@ -27,44 +27,56 @@ def beautyPrint(jsonOutput):
 		print "\n",
 	pass
 
-def checksum(fileName):
-	return hashlib.md5(open(fileName,'rb').read()).hexdigest()
+def checksum(fileName,path):
+	return hashlib.md5(open(path+'/'+fileName,'rb').read()).hexdigest()
 
 def verify(fileName,path):
 	result = []
-	value = checksum(fileName)
+	value = checksum(fileName,path)
 	for file in os.listdir(path):
 		if file == fileName:
-			temp = getStats(file)
+			temp = getStats(file,path)
 			result = [{'value':value,'time':temp['time']}]
 	return result
 
 def checkall(path):
 	result = []
 	for file in os.listdir(path):
-		if os.path.isfile(file):
-			temp = getStats(file)
-			value = checksum(file)
+		if os.path.isfile(path+'/'+file):
+			temp = getStats(file,path)
+			value = checksum(file,path)
 			result.append({'name':file,'time':temp['time'],'value':value})
 	return result
 
 def checkSync(Folder1,Folder2):
 	downlaodList = []
+	count = 0
 	for stats in Folder1:
 		for stats2 in Folder2:
-			if stats['name'] == stats2['name'] and stats['value'] != stats2['value'] and stats['time'] <= stats2['time']:
+			if stats['name'] == stats2['name'] and stats['value'] != stats2['value'] and datetime.datetime.fromtimestamp(stats['time'])<= datetime.datetime.fromtimestamp(stats2['time']):
 				downlaodList.append(stats2)
+			elif stats2['name']!=stats['name']:
+				count+=1
+		if count == len(Folder2):
+			downlaodList.append(stats)
+			count = 0
 	return downlaodList
 
 def getList(client):
 	output = client.send('hash checkall')
-	return parseOutput('hash checkall',client,client,1) #clientUdp is not used so lite
+	ass =  parseOutput('hash checkall',client,client,1) #clientUdp is not used so lite
+	client.close()
+	return ass
 
-def downloadFiles(client):
-	downlaodList = checkSync(getList(client),checkall('.'))
+def downloadFiles(client,path):
+	downlaodList = checkSync(getList(client),checkall(path))
 	for files in downlaodList:
+		client = socket.socket()
+		client.connect((host,port))
+		print files['name']
 		client.send('download TCP '+files['name'])
 		parseOutput('download TCP '+files['name'],client,client,0)
+		client.close()
 
 
 def parseOutput(query,client,clientUdp,returnValue):
@@ -81,7 +93,7 @@ def parseOutput(query,client,clientUdp,returnValue):
 				break
 	elif query.split()[0] == "download":
 		if query.split()[1] == "TCP":
-			with open(query.split()[2]+"_downloaded", 'wb') as f:
+			with open('folder2/'+query.split()[2], 'wb') as f:
 				while True:
 					print('receiving data...')
 					data = client.recv(1024)
@@ -89,7 +101,7 @@ def parseOutput(query,client,clientUdp,returnValue):
 						break
 					f.write(data)
 		elif query.split()[1] == "UDP":
-			with open(query.split()[2]+"_downloaded",'wb') as f:
+			with open(query.split()[2],'wb') as f:
 				while True:
 					print "receiving data..."
 					dataUdp , addrUdp = clientUdp.recvfrom(1024)
@@ -106,6 +118,8 @@ port = 12343
 portUdp = 12344
 client = socket.socket()
 
+startTime = time.time()
+
 clientUdp = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 clientUdp.bind((host,portUdp))
 
@@ -113,8 +127,14 @@ while True:
 	client = socket.socket()
 	client.connect((host,port))
 	query = raw_input("prompt>")
-	client.send(query)	
-	print "passed query"
-	output = parseOutput(query,client,clientUdp,0)
-	print "broken"
-	client.close()
+
+	currentTime = time.time()
+	if currentTime-startTime > 10:
+		downloadFiles(client,'folder1')
+		startTime = currentTime	
+	else:
+		client.send(query)	
+		print "passed query"
+		output = parseOutput(query,client,clientUdp,0)
+		print "broken"
+		client.close()

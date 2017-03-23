@@ -5,12 +5,12 @@ import datetime
 import re
 import hashlib
 
-def getStats(fileName):
+def getStats(fileName,path):
 	temp = {}
 	temp['name'] = fileName
-	temp['time'] = os.stat(fileName).st_mtime
-	temp['size'] = os.stat(fileName).st_size
-	if os.path.isdir(fileName):
+	temp['time'] = os.stat(path+'/'+fileName).st_mtime
+	temp['size'] = os.stat(path+'/'+fileName).st_size
+	if os.path.isdir(path+'/'+fileName):
 		temp['type'] = 'dir'
 	else:
 		temp['type'] = 'file'
@@ -19,7 +19,7 @@ def getStats(fileName):
 def longlist(path,conn):
 	result = []
 	for file in os.listdir(path):
-		temp = getStats(file)
+		temp = getStats(file,path)
 		result.append(temp)
 	resultJson = json.dumps(result)
 	conn.send(resultJson)
@@ -30,7 +30,7 @@ def shortlist(a,b,path,conn):
 	a = datetime.datetime.strptime(a,'%Y/%m/%d')
 	b = datetime.datetime.strptime(b,'%Y/%m/%d')
 	for file in os.listdir(path):
-		temp = getStats(file)
+		temp = getStats(file,path)
 		if datetime.datetime.fromtimestamp(temp['time']) >= a and datetime.datetime.fromtimestamp(temp['time']) <= b:
 			result.append(temp)
 	resultJson = json.dumps(result)
@@ -41,21 +41,21 @@ def regex(regExp,path,conn):
 	result = []
 	for file in os.listdir(path):
 		if re.search(regExp,file):
-			temp = getStats(file)
+			temp = getStats(file,path)
 			result.append(temp)
 	resultJson = json.dumps(result)
 	conn.send(resultJson)
 	pass
 
-def checksum(fileName):
-	return hashlib.md5(open(fileName,'rb').read()).hexdigest()
+def checksum(fileName,path):
+	return hashlib.md5(open(path+'/'+fileName,'rb').read()).hexdigest()
 
 def verify(fileName,conn,path):
 	result = []
-	value = checksum(fileName)
+	value = checksum(fileName,path)
 	for file in os.listdir(path):
 		if file == fileName:
-			temp = getStats(file)
+			temp = getStats(file,path)
 			result = [{'value':value,'time':temp['time']}]
 	resultJson = json.dumps(result)
 	conn.send(resultJson)
@@ -63,16 +63,16 @@ def verify(fileName,conn,path):
 def checkall(conn,path):
 	result = []
 	for file in os.listdir(path):
-		if os.path.isfile(file):
-			temp = getStats(file)
-			value = checksum(file)
+		if os.path.isfile(path+'/'+file):
+			temp = getStats(file,path)
+			value = checksum(file,path)
 			result.append({'name':file,'time':temp['time'],'value':value})
 	resultJson = json.dumps(result)
 	conn.send(resultJson)
 	pass
 
 def tcpDownload(path,conn,fileName):
-	file = open(fileName,'rb')
+	file = open(path+'/'+fileName,'rb')
 	tempBytes = file.read(1024)
 	while tempBytes:
 		conn.send(tempBytes)
@@ -81,7 +81,7 @@ def tcpDownload(path,conn,fileName):
 	pass
 
 def udpDownload(path,serverUdp,portUdp,conn,fileName):
-	file = open(fileName,'rb')
+	file = open(path+'/'+fileName,'rb')
 	tempBytes = file.read(1024)
 	while tempBytes:
 		serverUdp.sendto(tempBytes,("",portUdp))
@@ -90,25 +90,25 @@ def udpDownload(path,serverUdp,portUdp,conn,fileName):
 	conn.send('udpDone')
 	pass
 
-def parseQuery(query,conn,serverUdp,portUdp):
+def parseQuery(query,conn,serverUdp,portUdp,path):
 	command = query.split()
 	if command[0] == "index":
 		if command[1] == "longlist":
-			longlist('.',conn)
+			longlist(path,conn)
 		elif command[1] == "shortlist":
-			shortlist(command[2],command[3],'.',conn)
+			shortlist(command[2],command[3],path,conn)
 		elif command[1] == "regex":
-			regex(command[2],'.',conn)
+			regex(command[2],path,conn)
 	elif command[0] == "hash":
 		if command[1] == "verify":
-			verify(command[2],conn,'.')
+			verify(command[2],conn,path)
 		elif command[1] == "checkall":
-			checkall(conn,'.')
+			checkall(conn,path)
 	elif command[0] == "download":
 		if command[1] == "TCP":
-			tcpDownload('.',conn,command[2])
+			tcpDownload(path,conn,command[2])
 		elif command[1] == "UDP":
-			udpDownload('.',serverUdp,portUdp,conn,command[2])	
+			udpDownload(path,serverUdp,portUdp,conn,command[2])	
 port = 12343
 portUdp = 12344
 
@@ -125,5 +125,6 @@ server.listen(5)
 while True:
 	conn,addr = server.accept()
 	query = conn.recv(1024)
-	parseQuery(query,conn,serverUdp,portUdp)
+	print query
+	parseQuery(query,conn,serverUdp,portUdp,'folder1')
 	conn.close()
