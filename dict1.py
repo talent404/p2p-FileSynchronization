@@ -10,6 +10,8 @@ def getStats(fileName,path):
 	temp['name'] = fileName
 	temp['time'] = os.stat(path+'/'+fileName).st_mtime
 	temp['size'] = os.stat(path+'/'+fileName).st_size
+	temp['permissions'] = oct(os.stat(path+'/'+fileName).st_mode & 0777)
+	print temp['permissions']
 	if os.path.isdir(path+'/'+fileName):
 		temp['type'] = 'dir'
 	else:
@@ -66,7 +68,7 @@ def checkall(conn,path):
 		if os.path.isfile(path+'/'+file):
 			temp = getStats(file,path)
 			value = checksum(file,path)
-			result.append({'name':file,'time':temp['time'],'value':value})
+			result.append({'name':file,'time':temp['time'],'value':value,'permissions':temp['permissions']})
 	resultJson = json.dumps(result)
 	conn.send(resultJson)
 	pass

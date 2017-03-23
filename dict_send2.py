@@ -76,6 +76,8 @@ def downloadFiles(client,path):
 		print files['name']
 		client.send('download TCP '+files['name'])
 		parseOutput('download TCP '+files['name'],client,client,0)
+		print files['permissions']
+		os.chmod(path+'/'+files['name'],int(files['permissions'],8))
 		client.close()
 
 

@@ -60,7 +60,7 @@ def checkSync(Folder2,Folder1):
 		if count == len(Folder1):
 			downlaodList.append(stats2)
 			count = 0
-	print downlaodList
+
 	return downlaodList
 
 def getList(client):
@@ -74,9 +74,10 @@ def downloadFiles(client,path):
 	for files in downlaodList:
 		client = socket.socket()
 		client.connect((host,port))
-		print files['name']
 		client.send('download TCP '+files['name'])
 		parseOutput('download TCP '+files['name'],client,client,0)
+		print files['permissions']
+		os.chmod(path+'/'+files['name'],int(files['permissions'],8))
 		client.close()
 
 
